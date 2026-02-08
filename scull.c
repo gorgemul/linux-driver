@@ -50,7 +50,7 @@ static void scull_init_cdev(struct cdev *cdev, dev_t dev_num)
         printk(KERN_INFO "[INFO] cdev_add success, major: %u, minor: %u", MAJOR(dev_num), MINOR(dev_num));
 }
 
-static void __exit scull_cleanup(void)
+static void scull_cleanup(void)
 {
         dev_t dev_num = MKDEV(major, minor);
         if (scull_devices) {
@@ -62,6 +62,11 @@ static void __exit scull_cleanup(void)
                 }
         }
         unregister_chrdev_region(dev_num, num_devices);
+}
+
+static void __exit scull_exit(void)
+{
+        scull_cleanup();
         printk(KERN_INFO "module exit\n");
 }
 
@@ -93,4 +98,4 @@ clean:
 }
 
 module_init(scull_init);
-module_exit(scull_cleanup);
+module_exit(scull_exit);
