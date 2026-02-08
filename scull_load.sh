@@ -29,5 +29,5 @@ for ((i = 0; i < num_devices; i++)); do
     sudo chgrp wheel "$device_path"
     sudo chmod 660 "$device_path"
 
-    echo "[INFO] create device $device_path, major: $major, minor: $((minor + i))"
+    echo "[INFO] create device($major, $((minor+i))) $device_path"
 done
