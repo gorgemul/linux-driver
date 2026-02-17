@@ -8,6 +8,7 @@
 #include <linux/errno.h> // errcode
 #include <linux/uaccess.h> // copy_to_user, copy_from_user
 #include <linux/fs.h>
+#include <linux/mutex.h>
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_DESCRIPTION("scull impl");
 
@@ -22,6 +23,7 @@ struct scull_dev {
         unsigned int num_quantum;
         size_t size;
         struct cdev cdev;
+        struct mutex lock;
 };
 
 unsigned int major;
@@ -80,8 +82,12 @@ static int scull_open(struct inode *inode, struct file *filp)
 {
         struct scull_dev *dev = container_of(inode->i_cdev, struct scull_dev, cdev);
         filp->private_data = dev;
-        if ((filp->f_flags & O_ACCMODE) == O_WRONLY)
+        if ((filp->f_flags & O_ACCMODE) == O_WRONLY) {
+                if (mutex_lock_interruptible(&dev->lock))
+                        return -ERESTARTSYS;
                 scull_trim(dev);
+                mutex_unlock(&dev->lock);
+        }
         return 0;
 }
 
@@ -95,7 +101,8 @@ static ssize_t scull_read(struct file *filp, char __user *buf, size_t count, lof
 {
         ssize_t rc = 0;
         struct scull_dev *dev = filp->private_data;
-        // TODO: put a mutex guard here
+        if (mutex_lock_interruptible(&dev->lock))
+                return -ERESTARTSYS;
         if (*fpos >= dev->size)
                 goto out;
         if (*fpos + count > dev->size)
@@ -118,6 +125,7 @@ static ssize_t scull_read(struct file *filp, char __user *buf, size_t count, lof
         *fpos += count;
         rc = count;
 out:
+        mutex_unlock(&dev->lock);
         return rc;
 }
 
@@ -125,7 +133,8 @@ static ssize_t scull_write(struct file *filp, const char __user *buf, size_t cou
 {
         ssize_t rc = -ENOMEM;
         struct scull_dev *dev = filp->private_data;
-        // TODO: put a mutex guard here
+        if (mutex_lock_interruptible(&dev->lock))
+                return -ERESTARTSYS;
         size_t node_size = dev->quantum_size * dev->num_quantum;
         int node_index = *fpos / node_size;
         int node_offset = *fpos % node_size;
@@ -158,6 +167,7 @@ static ssize_t scull_write(struct file *filp, const char __user *buf, size_t cou
         if (*fpos > dev->size)
                 dev->size = *fpos;
 out:
+        mutex_unlock(&dev->lock);
         return rc;
 }
 
@@ -219,6 +229,7 @@ static int __init scull_init(void)
         for (int i = 0; i < num_devices; i++) {
                 scull_devices[i].quantum_size = quantum_size;
                 scull_devices[i].num_quantum = num_quantum;
+                mutex_init(&scull_devices[i].lock);
                 scull_init_cdev(&scull_devices[i].cdev, MKDEV(major, minor+i));
         }
         printk(KERN_INFO "module init\n");
