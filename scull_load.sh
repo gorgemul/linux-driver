@@ -5,12 +5,18 @@ device="scull"
 minor=0
 num_devices=3
 
+exist=$(lsmod | grep "$module")
+
+if [ -n "$exist" ]; then
+    echo "[WARNING] module $module has already been loaded"
+    exit 0
+fi
+
 if [ "$num_devices" -le 0 ]; then
     echo "[ERROR] num_devices must be greater than 0"
     exit 1
 fi
 
-echo "[INFO] loading module $module"
 sudo insmod "$module.ko" $* || { echo "[ERROR] load module fail"; exit 1; }
 major=$(grep "$module" /proc/devices | awk '{print $1}')
 

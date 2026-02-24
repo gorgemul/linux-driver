@@ -29,7 +29,7 @@ struct scull_dev {
 unsigned int major;
 unsigned int minor = 0;
 unsigned int num_devices = 3; 
-size_t quantum_size = 4096; // should pass in module load time later
+size_t quantum_size = 4000; // should pass in module load time later
 unsigned int num_quantum = 100;
 struct scull_dev *scull_devices;
 
