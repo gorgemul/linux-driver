@@ -17,10 +17,10 @@ if [ "$num_devices" -le 0 ]; then
     exit 1
 fi
 
+echo "[INFO] loading module"
 sudo insmod "$module.ko" $* || { echo "[ERROR] load module fail"; exit 1; }
 major=$(grep "$module" /proc/devices | awk '{print $1}')
 
-echo "[INFO] removing devices /dev/${device}*"
 find /dev -type c -name 'scull*' | xargs -I {} sudo rm {}
 
 if [ -z "$major" ]; then

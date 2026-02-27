@@ -1,12 +1,13 @@
 #!/bin/bash
 
-echo "[INFO] loading module"
 ./scull_load.sh
 if [ "$?" -ne "0" ]; then
-    echo "[INFO] fail to load module"
     exit 1
 fi
-echo "[INFO] start running test"
-./scull_test.py
-echo "[INFO] unloading module"
+echo "[INFO] building test"
+gcc -Wall -Wextra -pedantic -o scull_test scull_test.c
+echo "[INFO] running test"
+./scull_test
+echo "[INFO] removing test"
+rm scull_test
 ./scull_unload.sh

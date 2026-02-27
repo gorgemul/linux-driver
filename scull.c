@@ -1,3 +1,4 @@
+#include "scull.h"
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/types.h> // dev_t
@@ -29,8 +30,8 @@ struct scull_dev {
 unsigned int major;
 unsigned int minor = 0;
 unsigned int num_devices = 3; 
-size_t quantum_size = 4000; // should pass in module load time later
-unsigned int num_quantum = 100;
+size_t quantum_size = DEFAULT_QUANTUM_SIZE;
+unsigned int num_quantum = DEFAULT_NUM_QUANTUM;
 struct scull_dev *scull_devices;
 
 static struct quantum_arr *scull_find_node(struct scull_dev *dev, int index)
@@ -171,12 +172,77 @@ out:
         return rc;
 }
 
+static long scull_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+{
+        if (_IOC_TYPE(cmd) != SCULL_IOC_MAGIC)
+                return -ENOTTY;
+        if (_IOC_NR(cmd) < 0 || _IOC_NR(cmd) > SCULL_IOC_IOC_NR_MAX)
+                return -ENOTTY;
+        if ((_IOC_DIR(cmd) & _IOC_READ) || (_IOC_DIR(cmd) & _IOC_WRITE)) {
+                unsigned long arg_size = _IOC_SIZE(cmd);
+                if (arg_size != sizeof(int) || !access_ok((void __user *)arg, arg_size))
+                        return -EFAULT;
+        }
+        int rc = 0;
+        size_t tmp;
+        switch (cmd) {
+        case SCULL_IOC_RESET:
+                quantum_size = DEFAULT_QUANTUM_SIZE;
+                num_quantum = DEFAULT_NUM_QUANTUM;
+                break;
+        case SCULL_IOC_SET_NUM_QUANTUM:
+                rc = __get_user(num_quantum, (int __user *)arg);
+                break;
+        case SCULL_IOC_SET_QUANTUM_SIZE:
+                rc = __get_user(quantum_size, (int __user *)arg);
+                break;
+        case SCULL_IOC_TELL_NUM_QUANTUM:
+                num_quantum = arg;
+                break;
+        case SCULL_IOC_TELL_QUANTUM_SIZE:
+                quantum_size = arg;
+                break;
+        case SCULL_IOC_GET_NUM_QUANTUM:
+                rc = __put_user(num_quantum, (int __user *)arg);
+                break;
+        case SCULL_IOC_GET_QUANTUM_SIZE:
+                rc = __put_user(quantum_size, (int __user *)arg);
+                break;
+        case SCULL_IOC_QUERY_NUM_QUANTUM:
+                return num_quantum;
+        case SCULL_IOC_QUERY_QUANTUM_SIZE:
+                return quantum_size;
+        case SCULL_IOC_SET_AND_GET_NUM_QUANTUM:
+                tmp = num_quantum;
+                rc = __get_user(num_quantum, (int __user *)arg);
+                if (rc == 0)
+                        rc = __put_user(tmp, (int __user *)arg);
+                break;
+        case SCULL_IOC_SET_AND_GET_QUANTUM_SIZE:
+                tmp = quantum_size;
+                rc = __get_user(quantum_size, (int __user *)arg);
+                if (rc == 0)
+                        rc = __put_user(tmp, (int __user *)arg);
+                break;
+        case SCULL_IOC_TELL_AND_QUERY_NUM_QUANTUM:
+                tmp = num_quantum;
+                num_quantum = arg;
+                return tmp;
+        case SCULL_IOC_TELL_AND_QUERY_QUANTUM_SIZE:
+                tmp = quantum_size;
+                quantum_size = arg;
+                return tmp;
+        }
+        return rc;
+}
+
 struct file_operations fops = {
         .owner = THIS_MODULE,
         .read = scull_read,
         .write = scull_write,
         .open = scull_open,
         .release = scull_release,
+        .unlocked_ioctl = scull_ioctl,
 };
 
 static void scull_init_cdev(struct cdev *cdev, dev_t dev_num)
