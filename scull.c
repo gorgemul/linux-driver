@@ -232,6 +232,8 @@ static long scull_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
                 tmp = quantum_size;
                 quantum_size = arg;
                 return tmp;
+        default:
+                return -EFAULT;
         }
         return rc;
 }
