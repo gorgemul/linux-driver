@@ -2,7 +2,7 @@
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/types.h> // dev_t
-#include <linux/kdev_t.h> // dev_t, MAJOR, MINOR, MKDEV
+#include <linux/kdev_t.h> // MAJOR, MINOR, MKDEV
 #include <linux/cdev.h> // struct cdev
 #include <linux/string.h> // memset
 #include <linux/slab.h> // kmalloc
@@ -11,7 +11,7 @@
 #include <linux/fs.h>
 #include <linux/mutex.h>
 MODULE_LICENSE("Dual BSD/GPL");
-MODULE_DESCRIPTION("scull impl");
+MODULE_DESCRIPTION("non-blocking in memory devices");
 
 struct quantum_arr {
         void **data;
@@ -256,7 +256,6 @@ static void scull_init_cdev(struct cdev *cdev, dev_t dev_num)
                 cdev->owner = NULL; // mark owner to NULL, so we can tell its add fail
                 printk(KERN_ERR "[ERROR] cdev_add device(%u, %u) fail\n", MAJOR(dev_num), MINOR(dev_num));
         }
-        printk(KERN_INFO "[INFO] cdev_add device(%u, %u) success\n", MAJOR(dev_num), MINOR(dev_num));
 }
 
 static void scull_cleanup(void)
@@ -264,11 +263,11 @@ static void scull_cleanup(void)
         if (scull_devices) {
                 for (int i = 0; i < num_devices; i++) {
                         if (scull_devices[i].cdev.owner) {
-                                printk(KERN_INFO "[INFO] cdev_del device(%u, %u)\n", major, minor + i);
                                 scull_trim(&scull_devices[i]);
                                 cdev_del(&scull_devices[i].cdev);
                         }
                 }
+                kfree(scull_devices);
         }
         unregister_chrdev_region(MKDEV(major, minor), num_devices);
 }
@@ -276,7 +275,6 @@ static void scull_cleanup(void)
 static void __exit scull_exit(void)
 {
         scull_cleanup();
-        printk(KERN_INFO "module exit\n");
 }
 
 static int __init scull_init(void)
@@ -300,7 +298,6 @@ static int __init scull_init(void)
                 mutex_init(&scull_devices[i].lock);
                 scull_init_cdev(&scull_devices[i].cdev, MKDEV(major, minor+i));
         }
-        printk(KERN_INFO "module init\n");
         return 0;
 clean:
         scull_cleanup();
